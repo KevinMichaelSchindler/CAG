@@ -1,0 +1,28 @@
+Summary by Top-K for hotpotqa-train
+
+==> BM25_k32
+Top-K: 1
+Semantic Similarity: 0.6652567003948207
+Prepare Time: 0.12355910241603851
+Generate Time: 0.6980972641613334
+
+Top-K: 10
+Semantic Similarity: 0.7238112592395434
+Prepare Time: 0.1254398266474406
+Generate Time: 1.7406370148062706
+
+Top-K: 20
+Semantic Similarity: 0.7451937497103548
+Prepare Time: 0.12694761753082276
+Generate Time: 3.265333879987399
+
+Top-K: 3
+Semantic Similarity: 0.7619074320265402
+Prepare Time: 0.12430237929026286
+Generate Time: 0.8470165287454923
+
+Top-K: 5
+Semantic Similarity: 0.7616722752340138
+Prepare Time: 0.1248385747273763
+Generate Time: 1.0644147579868635
+

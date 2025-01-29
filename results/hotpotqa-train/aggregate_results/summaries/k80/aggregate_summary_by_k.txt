@@ -1,0 +1,75 @@
+Aggregate Summary by Knowledge Size for hotpotqa-train (k=80)
+
+==> Knowledge Size: 80
+Method: BM25 (top-k=1)
+Average Semantic Similarity: 0.6745
+Average Prepare Time: 0.3158
+Average Generate Time: 0.4342
+Number of runs: 1
+
+Method: BM25 (top-k=10)
+Average Semantic Similarity: 0.7498
+Average Prepare Time: 0.3165
+Average Generate Time: 1.4730
+Number of runs: 1
+
+Method: BM25 (top-k=20)
+Average Semantic Similarity: 0.7656
+Average Prepare Time: 0.3149
+Average Generate Time: 2.9238
+Number of runs: 1
+
+Method: BM25 (top-k=3)
+Average Semantic Similarity: 0.7617
+Average Prepare Time: 0.3165
+Average Generate Time: 0.6180
+Number of runs: 1
+
+Method: BM25 (top-k=5)
+Average Semantic Similarity: 0.7723
+Average Prepare Time: 0.3165
+Average Generate Time: 0.8292
+Number of runs: 1
+
+Method: KV Cache (No Cache) (top-k=N/A)
+Average Semantic Similarity: 0.7639
+Average Prepare Time: 151.8335
+Average Generate Time: 0.0000
+Number of runs: 1
+
+Method: KV Cache (top-k=N/A)
+Average Semantic Similarity: 0.7470
+Average Prepare Time: 154.2110
+Average Generate Time: 0.0000
+Number of runs: 1
+
+Method: result_80_rag_Index_openai_top1.txt (top-k=N/A)
+Average Semantic Similarity: 0.7195
+Average Prepare Time: 4.9083
+Average Generate Time: 0.5289
+Number of runs: 1
+
+Method: result_80_rag_Index_openai_top10.txt (top-k=N/A)
+Average Semantic Similarity: 0.7490
+Average Prepare Time: 4.7763
+Average Generate Time: 2.5747
+Number of runs: 1
+
+Method: result_80_rag_Index_openai_top20.txt (top-k=N/A)
+Average Semantic Similarity: 0.7449
+Average Prepare Time: 5.0459
+Average Generate Time: 5.9562
+Number of runs: 1
+
+Method: result_80_rag_Index_openai_top3.txt (top-k=N/A)
+Average Semantic Similarity: 0.7506
+Average Prepare Time: 4.5486
+Average Generate Time: 0.8823
+Number of runs: 1
+
+Method: result_80_rag_Index_openai_top5.txt (top-k=N/A)
+Average Semantic Similarity: 0.7421
+Average Prepare Time: 5.1890
+Average Generate Time: 1.3392
+Number of runs: 1
+

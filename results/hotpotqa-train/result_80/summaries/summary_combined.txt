@@ -1,0 +1,62 @@
+Combined Summary for hotpotqa-train
+
+==> KV Cache (k=80, top-k=N/A)
+Semantic Similarity: 0.7470221216712768
+Prepare Time: 154.21095869938532
+Generate Time: 0
+
+==> KV Cache (No Cache) (k=80, top-k=N/A)
+Semantic Similarity: 0.7639185486760522
+Prepare Time: 151.83345093045915
+Generate Time: 0
+
+==> BM25 (k=80, top-k=1)
+Semantic Similarity: 0.6744729923659607
+Prepare Time: 0.3157869086546056
+Generate Time: 0.43415682000272415
+
+==> BM25 (k=80, top-k=10)
+Semantic Similarity: 0.7497546075312558
+Prepare Time: 0.3165293861837948
+Generate Time: 1.4729540400645311
+
+==> BM25 (k=80, top-k=20)
+Semantic Similarity: 0.7656370147833299
+Prepare Time: 0.31493454820969524
+Generate Time: 2.923769700351883
+
+==> BM25 (k=80, top-k=3)
+Semantic Similarity: 0.7617038686609116
+Prepare Time: 0.31645898257984834
+Generate Time: 0.6179954700610217
+
+==> BM25 (k=80, top-k=5)
+Semantic Similarity: 0.772291505085099
+Prepare Time: 0.31648947210872874
+Generate Time: 0.8292094474329668
+
+==> result_80_rag_Index_openai_top1.txt (k=80, top-k=N/A)
+Semantic Similarity: 0.719544833808836
+Prepare Time: 4.908272546880386
+Generate Time: 0.5289486800923067
+
+==> result_80_rag_Index_openai_top10.txt (k=80, top-k=N/A)
+Semantic Similarity: 0.7489838088321609
+Prepare Time: 4.776260586345897
+Generate Time: 2.574654601952609
+
+==> result_80_rag_Index_openai_top20.txt (k=80, top-k=N/A)
+Semantic Similarity: 0.7448524529675898
+Prepare Time: 5.0458676674786735
+Generate Time: 5.956248257966602
+
+==> result_80_rag_Index_openai_top3.txt (k=80, top-k=N/A)
+Semantic Similarity: 0.7505692440242616
+Prepare Time: 4.548637965146233
+Generate Time: 0.8823410835336237
+
+==> result_80_rag_Index_openai_top5.txt (k=80, top-k=N/A)
+Semantic Similarity: 0.7420566460829886
+Prepare Time: 5.189004870022044
+Generate Time: 1.3391912444549448
+

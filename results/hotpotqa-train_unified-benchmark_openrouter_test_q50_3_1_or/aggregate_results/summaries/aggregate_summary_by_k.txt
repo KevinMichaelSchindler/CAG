@@ -1,0 +1,28 @@
+Aggregate Summary by Knowledge Size for results
+
+==> Knowledge Size: 50
+Method: CustomGPT.ai (top-k=5)
+Average Semantic Similarity: 0.7282
+Average Prepare Time: 192.4608
+Average Generate Time: 1.5105
+Number of runs: 1
+
+Method: KV Cache (No Cache) (top-k=N/A)
+Average Semantic Similarity: 0.6250
+Average Prepare Time: 0.0000
+Average Generate Time: 0.0000
+Number of runs: 1
+
+==> Knowledge Size: 500
+Method: CustomGPT.ai (top-k=5)
+Average Semantic Similarity: 0.8109
+Average Prepare Time: 814.5209
+Average Generate Time: 1.6974
+Number of runs: 1
+
+Method: KV Cache (No Cache) (top-k=N/A)
+Average Semantic Similarity: 0.4918
+Average Prepare Time: 0.0000
+Average Generate Time: 0.0000
+Number of runs: 1
+

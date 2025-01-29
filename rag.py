@@ -9,52 +9,38 @@ import os
 import json
 from transformers import BitsAndBytesConfig
 import random
-
+import requests
+import time as time_module
+from time import time
 import logging
+import warnings
+
+# Suppress BM25 escape sequence warning
+warnings.filterwarnings("ignore", category=SyntaxWarning, message="invalid escape sequence")
+
+from utils import (
+    get_env, validate_env_variables, get_bert_similarity, 
+    load_model, generate_with_ollama, generate_with_openrouter,
+    get_kis_dataset, unique_path
+)
+
+"""Sentence-BERT for evaluate semantic similarity"""
+from sentence_transformers import SentenceTransformer, util
+bert_model = SentenceTransformer('all-MiniLM-L6-v2')  # Use a lightweight sentence-transformer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+env = validate_env_variables()
+HF_TOKEN = env["HF_TOKEN"]
+OPENROUTER_API_KEY = env.get("OPENROUTER_API_KEY", "")
 
-
-def get_env():
-    env_dict = {}
-    with open (file=".env" if os.path.exists(".env") else "env", mode="r") as f:
-        for line in f:
-            key, value = line.strip().split("=")
-            env_dict[key] = value.strip('"')
-    return env_dict
-
-"""Hugging Face Llama model"""
-
-env = get_env()
-
-HF_TOKEN = get_env()["HF_TOKEN"]
 global model_name, model, tokenizer
 global rand_seed
 
 # Allowlist the DynamicCache class
 torch.serialization.add_safe_globals([DynamicCache])
 torch.serialization.add_safe_globals([set])
-
-# Define a simplified generate function
-
-
-"""Sentence-BERT for evaluate semantic similarity"""
-from sentence_transformers import SentenceTransformer, util
-bert_model = SentenceTransformer('all-MiniLM-L6-v2')  # Use a lightweight sentence-transformer
-
-def get_bert_similarity(response, ground_truth):
-    # Encode the query and text
-    query_embedding = bert_model.encode(response, convert_to_tensor=True)
-    text_embedding = bert_model.encode(ground_truth, convert_to_tensor=True)
-
-    # Compute the cosine similarity between the query and text
-    cosine_score = util.pytorch_cos_sim(query_embedding, text_embedding)
-
-    return cosine_score.item()
-
-from time import time
 
 from llama_index.core import Settings
 
@@ -246,7 +232,7 @@ def rag_test(args: argparse.Namespace):
     if args.dataset == "hotpotqa-dev":
         datapath = "./datasets/hotpotqa/hotpot_dev_fullwiki_v1.json"
         text_list, dataset = get_hotpotqa_dataset(datapath, args.maxKnowledge)
-        answer_instruction
+        answer_instruction = "Answer the question with a super short answer."
     if args.dataset == "hotpotqa-test":
         datapath = "./datasets/hotpotqa/hotpot_test_fullwiki_v1.json"
         text_list, dataset = get_hotpotqa_dataset(datapath, args.maxKnowledge)
@@ -256,10 +242,15 @@ def rag_test(args: argparse.Namespace):
         text_list, dataset = get_hotpotqa_dataset(datapath, args.maxKnowledge)
         answer_instruction = "Answer the question with a super short answer."
         
-    if answer_instruction != None:
-        answer_instruction = "Answer the question with a super short answer."
-    
-    kvcache_path = "./data_cache/cache_knowledges.pt"
+    if answer_instruction == None:
+        answer_instruction = """Answer the question with a super short answer, providing only the essential information in a few words. 
+Do not give explanations or additional context.
+
+Examples:
+❌ Wrong (too verbose): "Rosie Mac was the body double for Emilia Clarke in her portrayal of Daenerys Targaryen in Game of Thrones."
+✓ Correct (concise): "Rosie Mac."
+"""
+
     # document indexing for the rag retriever
     documents = [Document(text=t) for t in text_list]
     
@@ -286,50 +277,64 @@ def rag_test(args: argparse.Namespace):
         "responses": []
     }
     
-    dataset = list(dataset) # Convert the dataset to a list
-    
+    dataset = list(dataset)
     max_questions = min(len(dataset), args.maxQuestion) if args.maxQuestion != None else len(dataset)
     
-    for id, (question, ground_truth) in enumerate(dataset[:max_questions]):    # Retrieve the knowledge from the vector database
+    for id, (question, ground_truth) in enumerate(dataset[:max_questions]):
+        # Retrieve the knowledge from the vector database
         retrieve_t1 = time()
         nodes = retriever.retrieve(question)
         retrieve_t2 = time()
         
         knowledge = "\n---------------------\n".join([node.text for node in nodes])
-        # short_knowledge = knowledge[:knowledge.find("**Step 4")]
         
         prompt = f"""
-    <|begin_of_text|>
-    <|start_header_id|>system<|end_header_id|>
-    You are an assistant for giving short answers based on given context.<|eot_id|>
-    <|start_header_id|>user<|end_header_id|>
-    Context information is below.
-    ------------------------------------------------
-    {knowledge}
-    ------------------------------------------------
-    {answer_instruction}
-    Question:
-    {question}
-    <|eot_id|>
-    <|start_header_id|>assistant<|end_header_id|>
-    """
+<|begin_of_text|>
+<|start_header_id|>system<|end_header_id|>
+You are an assistant for giving very concise answers based on given context. Always provide the shortest possible correct answer.<|eot_id|>
+<|start_header_id|>user<|end_header_id|>
+Context information is below.
+------------------------------------------------
+{knowledge}
+------------------------------------------------
+{answer_instruction}
+Question:
+{question}<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>
+"""
 
         # Generate Response for the question
-        generate_t1 = time() 
-        input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-        output = model.generate(
-            input_ids,
-            max_new_tokens=300,  # Set the maximum length of the generated text
-            do_sample=False,  # Ensures greedy decoding,
-            temperature=None
-        )
-        generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-        generate_t2 = time() 
-
-        generated_text = generated_text[generated_text.find(question) + len(question):]
-        generated_text = generated_text[generated_text.find('assistant') + len('assistant'):].lstrip()
+        generate_t1 = time()
+        generated_text = None
+        retry_time = 0
+        # raw_text = None
         
-        # print("R: ", knowledge)
+        try:
+            if args.model_type == "openrouter":
+                generated_text, retry_time = generate_with_openrouter(prompt, args.modelname)
+                logger.debug(f"OpenRouter raw response: {generated_text}")
+            else:  # huggingface
+                input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+                output = model.generate(
+                    input_ids,
+                    max_new_tokens=300,
+                    do_sample=False      # Keep deterministic generation
+                )
+                raw_text = tokenizer.decode(output[0], skip_special_tokens=True)
+                logger.debug(f"HuggingFace raw response: {raw_text}")
+                generated_text = raw_text[raw_text.find(question) + len(question):]
+                generated_text = generated_text[generated_text.find('assistant') + len('assistant'):].lstrip()
+            
+            logger.debug(f"Final processed response: {generated_text}")
+        except Exception as e:
+            logger.error(f"Error generating response for question {id}: {str(e)}")
+            generated_text = None
+            
+        generate_t2 = time()
+        generate_time = generate_t2 - generate_t1 - retry_time
+        
+  
+        # print(f"Processed response: {generated_text}")
         print("Q: ", question)
         print("A: ", generated_text)
         
@@ -338,15 +343,15 @@ def rag_test(args: argparse.Namespace):
         
         print(f"[{id}]: Semantic Similarity: {round(similarity, 5)},\t",
             f"retrieve time: {retrieve_t2 - retrieve_t1},\t",
-            f"generate time: {generate_t2 - generate_t1}"
+            f"generate time: {generate_time}"
             )
         with open(args.output, "a") as f:
-            f.write(f"[{id}]: Semantic Similarity: {round(similarity, 5)},\t retrieve time: {retrieve_t2 - retrieve_t1},\t generate time: {generate_t2 - generate_t1}\n")
+            f.write(f"[{id}]: Semantic Similarity: {round(similarity, 5)},\t retrieve time: {retrieve_t2 - retrieve_t1},\t generate time: {generate_time}\n")
             
         results["prompts"].append(prompt)
-        results["responses"].append(generated_text)
+        results["responses"].append(generated_text if generated_text is not None else "")
         results["retrieve_time"].append(retrieve_t2 - retrieve_t1)
-        results["generate_time"].append(generate_t2 - generate_t1)
+        results["generate_time"].append(generate_time)
         results["similarity"].append(similarity)
         
         with open(args.output, "a") as f:
@@ -355,11 +360,11 @@ def rag_test(args: argparse.Namespace):
                     + f"\t retrieve time: {sum(results['retrieve_time']) / (len(results['retrieve_time'])) },"
                     + f"\t generate time: {sum(results['generate_time']) / (len(results['generate_time'])) }\n")
         
-        
     avg_similarity = sum(results["similarity"]) / len(results["similarity"])
     avg_retrieve_time = sum(results["retrieve_time"]) / len(results["retrieve_time"])
     avg_generate_time = sum(results["generate_time"]) / len(results["generate_time"])
     print()
+    print(f"Result for {args.output}")
     print(f"Prepare time: {prepare_time}")
     print(f"Average Semantic Similarity: {avg_similarity}")
     print(f"retrieve time: {avg_retrieve_time},\t generate time: {avg_generate_time}")
@@ -400,8 +405,8 @@ def load_quantized_model(model_name, hf_token=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run RAG test with specified parameters.")
-    # parser.add_argument('--method', choices=['rag', 'kvcache'], required=True, help='Method to use (rag or kvcache)')
     parser.add_argument('--modelname', required=False, default="meta-llama/Llama-3.2-1B-Instruct", type=str, help='Model name to use')
+    parser.add_argument('--model_type', choices=['huggingface', 'ollama', 'openrouter'], required=False, default='huggingface', help='Type of model to use')
     parser.add_argument('--quantized', required=False, default=False, type=bool, help='Quantized model')
     parser.add_argument('--index', choices=['gemini', 'openai', 'bm25', 'jina'], required=True, help='Index to use (gemini, openai, bm25, jina)')
     parser.add_argument('--similarity', choices=['bertscore'], required=True, help='Similarity metric to use (bertscore)')
@@ -416,30 +421,24 @@ if __name__ == "__main__":
                                 'hotpotqa-dev',  'hotpotqa-train', 'hotpotqa-test'])
     parser.add_argument('--randomSeed', required=False, default=None, type=int, help='Random seed to use')
     
-    # 48 Articles, each article average 40~50 paragraph, each average 5~10 questions
-    
     args = parser.parse_args()
     
-    print("maxKnowledge", args.maxKnowledge, "maxParagraph", args.maxParagraph, "maxQuestion", args.maxQuestion, "randomSeed", args.randomSeed)
+    logger.info(f"maxKnowledge: {args.maxKnowledge}, maxParagraph: {args.maxParagraph}, maxQuestion: {args.maxQuestion}, randomSeed: {args.randomSeed}")
     
     model_name = args.modelname
-    rand_seed = args.randomSeed if args.randomSeed != None else None
+    rand_seed = args.randomSeed if args.randomSeed is not None else None
     
-    if args.quantized:
-        tokenizer, model = load_quantized_model(model_name=model_name, hf_token=HF_TOKEN)
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            token=HF_TOKEN
-        )
-    
-    def unique_path(path, i=0):
-        if os.path.exists(path):
-            return unique_path(path + "_" + str(i), i + 1)
-        return path
+    if args.model_type == 'huggingface':
+        if args.quantized:
+            tokenizer, model = load_quantized_model(model_name=model_name, hf_token=HF_TOKEN)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                token=HF_TOKEN
+            )
     
     if os.path.exists(args.output):
         args.output = unique_path(args.output)

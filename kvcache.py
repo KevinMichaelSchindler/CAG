@@ -9,7 +9,12 @@ from transformers import BitsAndBytesConfig, AutoTokenizer, AutoModelForCausalLM
 from transformers.cache_utils import DynamicCache
 import random
 import logging 
-
+import requests
+import time as time_module
+from utils import (
+    get_env, validate_env_variables, get_bert_similarity,
+    load_model, generate_with_ollama, generate_with_openrouter
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -274,14 +279,75 @@ def get_hotpotqa_dataset(filepath: str, max_knowledge: int = None):
         max_knowledge = min(max_knowledge, len(data))
 
     text_list = []
+    logger.info(f"Loading HotpotQA dataset with max_knowledge={max_knowledge}")
+    
     for i, qa in enumerate(data[:max_knowledge]):
         context = qa['context']
+        # Add logging to see what context is being loaded
+        logger.info(f"Loading context for question {i}:")
+        logger.info(f"Number of context items: {len(context)}")
+        logger.info(f"First context item: {context[0] if context else 'No context'}")
+        
         context = [c[0] + ": \n" + "".join(c[1]) for c in context]
         article = "\n\n".join(context)
-
         text_list.append(article)
 
+    logger.info(f"Loaded {len(text_list)} knowledge texts")
     return text_list, dataset
+
+
+def truncate_prompt(prompt: str, tokenizer, max_tokens: int = 100000) -> str:
+    """
+    Truncate the prompt to fit within the token limit while preserving the structure.
+    
+    Args:
+        prompt: The full prompt to truncate
+        tokenizer: The tokenizer to use for counting tokens (or None for API services)
+        max_tokens: Maximum number of tokens allowed
+    """
+    # Split the prompt into sections
+    sections = prompt.split("------------------------------------------------")
+    if len(sections) != 3:
+        return prompt  # Return original if structure is unexpected
+        
+    header = sections[0]
+    context = sections[1]
+    footer = sections[2]
+    
+    # If using HuggingFace tokenizer
+    if tokenizer:
+        while len(tokenizer.encode(prompt)) > max_tokens:
+            # Split context into paragraphs
+            paragraphs = context.split("\n\n")
+            # Remove one paragraph at a time from the middle
+            if len(paragraphs) > 2:
+                mid = len(paragraphs) // 2
+                paragraphs.pop(mid)
+                context = "\n\n".join(paragraphs)
+                prompt = f"{header}------------------------------------------------{context}------------------------------------------------{footer}"
+            else:
+                break
+    # For API services (OpenRouter/Ollama)
+    else:
+        # More conservative estimate: 3 characters per token
+        char_limit = max_tokens * 3
+        while len(prompt) > char_limit:
+            # Split context into paragraphs
+            paragraphs = context.split("\n\n")
+            # Remove multiple paragraphs at once for faster reduction
+            if len(paragraphs) > 4:
+                mid = len(paragraphs) // 2
+                # Remove 25% of paragraphs at a time
+                remove_count = max(1, len(paragraphs) // 4)
+                start_idx = mid - remove_count // 2
+                end_idx = start_idx + remove_count
+                paragraphs[start_idx:end_idx] = []
+                context = "\n\n".join(paragraphs)
+                prompt = f"{header}------------------------------------------------{context}------------------------------------------------{footer}"
+            else:
+                break
+    
+    return prompt
 
 
 def kvcache_test(args: argparse.Namespace):
@@ -315,11 +381,19 @@ def kvcache_test(args: argparse.Namespace):
     kvcache_path = "./data_cache/cache_knowledges.pt"
 
     knowledges = '\n\n\n\n\n\n'.join(text_list)
-    knowledge_cache, prepare_time = prepare_kvcache(knowledges, filepath=kvcache_path, answer_instruction=answer_instruction)
-    kv_len = knowledge_cache.key_cache[0].shape[-2]
-    print(f"KVcache prepared in {prepare_time} seconds")
-    with open(args.output, "a") as f:
-        f.write(f"KVcache prepared in {prepare_time} seconds\n")
+    
+    # Initialize variables
+    knowledge_cache = None
+    prepare_time = 0
+    kv_len = 0
+    
+    # Only prepare KV cache for HuggingFace models
+    if args.model_type == 'huggingface':
+        knowledge_cache, prepare_time = prepare_kvcache(knowledges, filepath=kvcache_path, answer_instruction=answer_instruction)
+        kv_len = knowledge_cache.key_cache[0].shape[-2]
+        print(f"KVcache prepared in {prepare_time} seconds")
+        with open(args.output, "a") as f:
+            f.write(f"KVcache prepared in {prepare_time} seconds\n")
 
     results = {
         "cache_time": [],
@@ -330,75 +404,96 @@ def kvcache_test(args: argparse.Namespace):
     }
 
     dataset = list(dataset)  # Convert the dataset to a list
-
     max_questions = min(len(dataset), args.maxQuestion) if args.maxQuestion is not None else len(dataset)
+    
+    # Add logging for dataset stats
+    logger.info(f"Dataset loaded with {len(dataset)} total questions")
+    logger.info(f"Will process {max_questions} questions")
+    logger.info(f"Number of knowledge texts: {len(text_list)}")
+
     # Retrieve the knowledge from the vector database
     for id, (question, ground_truth) in enumerate(dataset[:max_questions]):
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if args.model_type == 'huggingface':
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
         # Read the knowledge cache from the cache file
         cache_t1 = time()
-        # if args.kvcache == "file":
-        #     knowledge_cache = read_kv_cache(kvcache_path)
-
-        # Not a good idea to use this method, as it will consume a lot of memory
-        # if args.kvcache == "variable":
-        #     knowledge_cache = documents_cache
         cache_t2 = time()
 
         # Generate Response for the question
         knowledges = '\n\n\n'.join(text_list)
+        
+        prompt = f"""
+<|begin_of_text|>
+<|start_header_id|>system<|end_header_id|>
+You are an assistant for giving short answers based on given context.<|eot_id|>
+<|start_header_id|>user<|end_header_id|>
+Context information is bellow.
+------------------------------------------------
+{knowledges}
+------------------------------------------------
+{answer_instruction}
+Question:
+{question}<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>
+"""
+        # Truncate prompt before generation
+        prompt = truncate_prompt(prompt, tokenizer if args.model_type == 'huggingface' else None)
+        
+        # Add detailed logging of the prompt and context
+        logger.info(f"\n{'='*80}\nProcessing Question {id}:")
+        logger.info(f"Question: {question}")
+        logger.info(f"Ground Truth: {ground_truth}")
+        logger.info(f"Number of knowledge texts: {len(text_list)}")
+        logger.info(f"Full prompt length: {len(prompt)}")
+        logger.info(f"{'='*80}\n")
 
-        if args.usePrompt:
-            prompt = f"""
-    <|begin_of_text|>
-    <|start_header_id|>system<|end_header_id|>
-    You are an assistant for giving short answers based on given context.<|eot_id|>
-    <|start_header_id|>user<|end_header_id|>
-    Context information is bellow.
-    ------------------------------------------------
-    {knowledges}
-    ------------------------------------------------
-    {answer_instruction}
-    Question:
-    {question}<|eot_id|>
-    <|start_header_id|>assistant<|end_header_id|>
-    """
-            generate_t1 = time()
-            input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-            output = generate(model, input_ids, DynamicCache()) 
-            generated_text = tokenizer.decode(output[0], skip_special_tokens=True, temperature=None)
-            generate_t2 = time()
-        else:
-            prompt = f"""
-    {question}<|eot_id|>
-    <|start_header_id|>assistant<|end_header_id|>
-    """
-            generate_t1 = time()
-            clean_up(knowledge_cache, kv_len)
-            input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-            output = generate(model, input_ids, knowledge_cache)
-            generated_text = tokenizer.decode(output[0], skip_special_tokens=True, temperature=None)
-            generate_t2 = time()
+        generate_t1 = time()
+        generated_text = None
+        retry_time = 0
 
-        # print("D: ", knowledges)
+        try:
+            if args.model_type == "openrouter":
+                generated_text, retry_time = generate_with_openrouter(prompt, args.modelname)
+            elif args.model_type == "ollama":
+                generated_text = generate_with_ollama(prompt, args.modelname)
+            else:  # huggingface
+                if args.usePrompt:
+                    input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+                    output = generate(model, input_ids, DynamicCache()) 
+                else:
+                    clean_up(knowledge_cache, kv_len)
+                    input_ids = tokenizer.encode(question + "<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>", return_tensors="pt").to(model.device)
+                    output = generate(model, input_ids, knowledge_cache)
+                generated_text = tokenizer.decode(output[0], skip_special_tokens=True, temperature=None)
+        except Exception as e:
+            logger.error(f"Error generating response for question {id}: {str(e)}")
+            generated_text = "Error generating response"
+            
+        generate_t2 = time()
+        generate_time = generate_t2 - generate_t1 - retry_time
+
         print("Q: ", question)
         print("A: ", generated_text)
  
-        # Evaluate bert-score similarity
+        # Add safety check before similarity calculation
+        if generated_text is None or not isinstance(generated_text, str):
+            generated_text = "Error generating response"
+        
+        # Now the similarity calculation should work
         similarity = get_bert_similarity(generated_text, ground_truth)
 
         print(f"[{id}]: Semantic Similarity: {round(similarity, 5)},",
               f"cache time: {cache_t2 - cache_t1},",
-              f"generate time: {generate_t2 - generate_t1}")
+              f"generate time: {generate_time}")
         with open(args.output, "a") as f:
-            f.write(f"[{id}]: Semantic Similarity: {round(similarity, 5)},\t cache time: {cache_t2 - cache_t1},\t generate time: {generate_t2 - generate_t1}\n")
+            f.write(f"[{id}]: Semantic Similarity: {round(similarity, 5)},\t cache time: {cache_t2 - cache_t1},\t generate time: {generate_time}\n")
 
         results["prompts"].append(question)
         results["responses"].append(generated_text)
         results["cache_time"].append(cache_t2 - cache_t1)
-        results["generate_time"].append(generate_t2 - generate_t1)
+        results["generate_time"].append(generate_time)
         results["similarity"].append(similarity)
 
         with open(args.output, "a") as f:
@@ -450,11 +545,22 @@ def load_quantized_model(model_name, hf_token=None):
     return tokenizer, model
 
 
+def log_memory_usage():
+    if torch.cuda.is_available():
+        logger.info(f"GPU Memory allocated: {torch.cuda.memory_allocated()/1024**2:.2f}MB")
+        logger.info(f"GPU Memory cached: {torch.cuda.memory_reserved()/1024**2:.2f}MB")
+
+
+def periodic_cleanup(iteration):
+    if iteration % 5 == 0:  # Every 5 iterations
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run RAG test with specified parameters.")
-    # parser.add_argument('--method', choices=['rag', 'kvcache'], required=True, help='Method to use (rag or kvcache)')
-    # parser.add_argument('--kvcache', choices=['file', 'variable'], required=True, help='Method to use (from_file or from_var)')
     parser.add_argument('--modelname', required=False, default="meta-llama/Llama-3.2-1B-Instruct", type=str, help='Model name to use')
+    parser.add_argument('--model_type', choices=['huggingface', 'ollama', 'openrouter'], required=False, default='huggingface', help='Type of model to use')
     parser.add_argument('--quantized', required=False, default=False, type=bool, help='Quantized model')
     parser.add_argument('--kvcache', choices=['file'], required=True, help='Method to use (from_file or from_var)')
     parser.add_argument('--similarity', choices=['bertscore'], required=True, help='Similarity metric to use (bertscore)')
@@ -468,7 +574,6 @@ if __name__ == "__main__":
                                  'squad-dev', 'squad-train',
                                  'hotpotqa-dev',  'hotpotqa-train', 'hotpotqa-test'])
     parser.add_argument('--randomSeed', required=False, default=None, type=int, help='Random seed to use')
-    # 48 Articles, each article average 40~50 paragraph, each average 5~10 questions
 
     args = parser.parse_args()
 
@@ -477,20 +582,37 @@ if __name__ == "__main__":
     model_name = args.modelname
     rand_seed = args.randomSeed if args.randomSeed is not None else None
 
-    if args.quantized:
-        tokenizer, model = load_quantized_model(model_name=model_name, hf_token=HF_TOKEN)
+    if args.model_type == 'huggingface':
+        if args.quantized:
+            tokenizer, model = load_quantized_model(model_name=model_name, hf_token=HF_TOKEN)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                token=HF_TOKEN
+            )
     else:
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            token=HF_TOKEN
-        )
+        # For ollama and openrouter, we don't need to load models
+        tokenizer, model = None, None
+        # Test connection
+        if args.model_type == 'ollama':
+            response = requests.get('http://localhost:11434/api/tags')
+            if response.status_code != 200:
+                raise Exception("Failed to connect to Ollama")
+            logger.info(f"Successfully connected to Ollama")
+        elif args.model_type == 'openrouter':
+            headers = {
+                "Authorization": f"Bearer {get_env()['OPENROUTER_API_KEY']}"
+            }
+            response = requests.get("https://openrouter.ai/api/v1/models", headers=headers)
+            if response.status_code != 200:
+                raise Exception("Failed to connect to OpenRouter")
+            logger.info(f"Successfully connected to OpenRouter")
 
     def unique_path(path, i=0):
         if os.path.exists(path):
-            # path = path.split("_")[:-1] if i != 0 else path
             return unique_path(path + "_" + str(i), i + 1)
         return path
 

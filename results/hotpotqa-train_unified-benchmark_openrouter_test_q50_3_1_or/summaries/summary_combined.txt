@@ -1,0 +1,22 @@
+Combined Summary for None
+
+==> KV Cache (No Cache) (k=50, top-k=N/A)
+Semantic Similarity: 0.6250152
+Prepare Time: 0.0
+Generate Time: 0
+
+==> CustomGPT.ai (k=50, top-k=5)
+Semantic Similarity: 0.7282006
+Prepare Time: 192.4608235359192
+Generate Time: 1.5105314436993038
+
+==> KV Cache (No Cache) (k=500, top-k=N/A)
+Semantic Similarity: 0.49177591836734696
+Prepare Time: 0.0
+Generate Time: 0
+
+==> CustomGPT.ai (k=500, top-k=5)
+Semantic Similarity: 0.8108762
+Prepare Time: 814.5208666324615
+Generate Time: 1.6974494256611374
+

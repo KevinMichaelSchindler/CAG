@@ -1,0 +1,16 @@
+Aggregate Summary by Method for results (k=50)
+
+==> CustomGPT.ai (top-k=5)
+Average Semantic Similarity: 0.7282
+Average Prepare Time: 192.4608
+Average Generate Time: 1.5105
+Number of runs: 1
+K sizes tested: ['50']
+
+==> KV Cache (No Cache) (top-k=N/A)
+Average Semantic Similarity: 0.6250
+Average Prepare Time: 0.0000
+Average Generate Time: 0.0000
+Number of runs: 1
+K sizes tested: ['50']
+

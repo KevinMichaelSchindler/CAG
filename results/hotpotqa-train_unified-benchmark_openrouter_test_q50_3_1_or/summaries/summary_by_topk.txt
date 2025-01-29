@@ -1,0 +1,14 @@
+Summary by Top-K for None
+
+==> CustomGPT.ai_k50
+Top-K: 5
+Semantic Similarity: 0.7282006
+Prepare Time: 192.4608235359192
+Generate Time: 1.5105314436993038
+
+==> CustomGPT.ai_k500
+Top-K: 5
+Semantic Similarity: 0.8108762
+Prepare Time: 814.5208666324615
+Generate Time: 1.6974494256611374
+

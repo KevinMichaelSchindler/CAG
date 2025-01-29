@@ -1,0 +1,86 @@
+Aggregate Summary by Method for hotpotqa-train (k=24)
+
+==> BM25 (top-k=1)
+Average Semantic Similarity: 0.6743
+Average Prepare Time: 0.0946
+Average Generate Time: 0.5954
+Number of runs: 1
+K sizes tested: ['24']
+
+==> BM25 (top-k=10)
+Average Semantic Similarity: 0.7456
+Average Prepare Time: 0.0958
+Average Generate Time: 1.6558
+Number of runs: 1
+K sizes tested: ['24']
+
+==> BM25 (top-k=20)
+Average Semantic Similarity: 0.7552
+Average Prepare Time: 0.0939
+Average Generate Time: 3.3606
+Number of runs: 1
+K sizes tested: ['24']
+
+==> BM25 (top-k=3)
+Average Semantic Similarity: 0.7570
+Average Prepare Time: 0.0942
+Average Generate Time: 0.7670
+Number of runs: 1
+K sizes tested: ['24']
+
+==> BM25 (top-k=5)
+Average Semantic Similarity: 0.7547
+Average Prepare Time: 0.0950
+Average Generate Time: 0.9753
+Number of runs: 1
+K sizes tested: ['24']
+
+==> KV Cache (No Cache) (top-k=N/A)
+Average Semantic Similarity: 0.7744
+Average Prepare Time: 22.5361
+Average Generate Time: 0.0000
+Number of runs: 1
+K sizes tested: ['24']
+
+==> KV Cache (top-k=N/A)
+Average Semantic Similarity: 0.7747
+Average Prepare Time: 21.2252
+Average Generate Time: 0.0000
+Number of runs: 1
+K sizes tested: ['24']
+
+==> result_24_rag_Index_openai_top1.txt (top-k=N/A)
+Average Semantic Similarity: 0.7190
+Average Prepare Time: 3.1304
+Average Generate Time: 0.6779
+Number of runs: 1
+K sizes tested: ['24']
+
+==> result_24_rag_Index_openai_top10.txt (top-k=N/A)
+Average Semantic Similarity: 0.7415
+Average Prepare Time: 2.0789
+Average Generate Time: 2.8473
+Number of runs: 1
+K sizes tested: ['24']
+
+==> result_24_rag_Index_openai_top20.txt (top-k=N/A)
+Average Semantic Similarity: 0.7384
+Average Prepare Time: 2.3510
+Average Generate Time: 6.5973
+Number of runs: 1
+K sizes tested: ['24']
+
+==> result_24_rag_Index_openai_top3.txt (top-k=N/A)
+Average Semantic Similarity: 0.7438
+Average Prepare Time: 2.0754
+Average Generate Time: 1.0441
+Number of runs: 1
+K sizes tested: ['24']
+
+==> result_24_rag_Index_openai_top5.txt (top-k=N/A)
+Average Semantic Similarity: 0.7357
+Average Prepare Time: 2.2245
+Average Generate Time: 1.5103
+Number of runs: 1
+K sizes tested: ['24']
+

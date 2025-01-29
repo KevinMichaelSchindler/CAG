@@ -1,0 +1,63 @@
+Summary by Knowledge Size for hotpotqa-train
+
+==> Knowledge Size: 24
+Method: KV Cache (top-k=N/A)
+Semantic Similarity: 0.774738526035152
+Prepare Time: 21.22516408363978
+Generate Time: 0
+
+Method: KV Cache (No Cache) (top-k=N/A)
+Semantic Similarity: 0.7744317214224591
+Prepare Time: 22.53605111837387
+Generate Time: 0
+
+Method: BM25 (top-k=1)
+Semantic Similarity: 0.6742765193882708
+Prepare Time: 0.09461557467778524
+Generate Time: 0.5953758642077446
+
+Method: BM25 (top-k=10)
+Semantic Similarity: 0.7456024905065229
+Prepare Time: 0.09578227202097575
+Generate Time: 1.6557785807384384
+
+Method: BM25 (top-k=20)
+Semantic Similarity: 0.7552001630919727
+Prepare Time: 0.09393914937973022
+Generate Time: 3.3606270667579436
+
+Method: BM25 (top-k=3)
+Semantic Similarity: 0.757047628434763
+Prepare Time: 0.0942017396291097
+Generate Time: 0.7670252735416094
+
+Method: BM25 (top-k=5)
+Semantic Similarity: 0.7546863057333718
+Prepare Time: 0.09501640796661377
+Generate Time: 0.9752844428022702
+
+Method: result_24_rag_Index_openai_top1.txt (top-k=N/A)
+Semantic Similarity: 0.7190134512680946
+Prepare Time: 3.130359133084615
+Generate Time: 0.6779096517297957
+
+Method: result_24_rag_Index_openai_top10.txt (top-k=N/A)
+Semantic Similarity: 0.7414622826663415
+Prepare Time: 2.0789222955703734
+Generate Time: 2.8472644049260354
+
+Method: result_24_rag_Index_openai_top20.txt (top-k=N/A)
+Semantic Similarity: 0.7383997654729886
+Prepare Time: 2.3510435104370115
+Generate Time: 6.5973225891590115
+
+Method: result_24_rag_Index_openai_top3.txt (top-k=N/A)
+Semantic Similarity: 0.7438370080968728
+Prepare Time: 2.0754169464111327
+Generate Time: 1.044076054626041
+
+Method: result_24_rag_Index_openai_top5.txt (top-k=N/A)
+Semantic Similarity: 0.7356817294591261
+Prepare Time: 2.2245444854100547
+Generate Time: 1.5102837190032006
+

@@ -1,0 +1,28 @@
+Summary by Top-K for hotpotqa-train
+
+==> BM25_k16
+Top-K: 1
+Semantic Similarity: 0.6664116391529158
+Prepare Time: 0.06737507017035234
+Generate Time: 0.4615152131177877
+
+Top-K: 10
+Semantic Similarity: 0.746104926929281
+Prepare Time: 0.06696468155558516
+Generate Time: 1.509905726262709
+
+Top-K: 20
+Semantic Similarity: 0.7647652417118048
+Prepare Time: 0.0668315009066933
+Generate Time: 2.980299503395432
+
+Top-K: 3
+Semantic Similarity: 0.7560012647395812
+Prepare Time: 0.06739884690393376
+Generate Time: 0.6607233529226689
+
+Top-K: 5
+Semantic Similarity: 0.7549787174710738
+Prepare Time: 0.06760195891062419
+Generate Time: 0.8694483421388126
+
